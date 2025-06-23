@@ -1,0 +1,163 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+class Solution {
+
+    /**
+     * Helper method to check if two two-digit numbers share at least one common digit.
+     *
+     * @param num1 The first two-digit number.
+     * @param num2 The second two-digit number.
+     * @return true if they share a common digit, false otherwise.
+     */
+    private boolean sharesDigit(int num1, int num2) {
+        // Extract digits of num1
+        int t1 = num1 / 10; // Tens digit of num1
+        int u1 = num1 % 10; // Units digit of num1
+
+        // Extract digits of num2
+        int t2 = num2 / 10; // Tens digit of num2
+        int u2 = num2 % 10; // Units digit of num2
+
+        // Check for common digit:
+        // - Tens digit of num1 matches Tens digit of num2
+        // - Tens digit of num1 matches Units digit of num2
+        // - Units digit of num1 matches Tens digit of num2
+        // - Units digit of num1 matches Units digit of num2
+        return (t1 == t2 || t1 == u2 || u1 == t2 || u1 == u2);
+    }
+
+    /**
+     * Calculates the maximum size of a subset in which every two numbers share at least one digit.
+     *
+     * @param nums An array of N integers, where each element is a two-digit number [10..99].
+     * @return The maximum size of the valid subset.
+     */
+    public int solution(int[] nums) {
+        // Step 1: Count frequencies of each unique two-digit number.
+        // This is necessary because the problem asks for the maximum number of array elements,
+        // meaning duplicate numbers in the input array contribute separately to the size of the subset.
+        Map<Integer, Integer> numFrequencies = new HashMap<>();
+        for (int num : nums) {
+            numFrequencies.put(num, numFrequencies.getOrDefault(num, 0) + 1);
+        }
+
+        // Initialize maxOverallCliqueSize.
+        // If the array is empty, the size is 0.
+        // If the array has elements, a single element always forms a valid group.
+        int maxOverallCliqueSize = 0;
+        if (nums.length > 0) {
+            maxOverallCliqueSize = 1;
+        } else {
+            return 0; // Return 0 for an empty input array
+        }
+        
+        // Get a list of distinct numbers from the frequency map for easier iteration.
+        List<Integer> distinctNumbers = new ArrayList<>(numFrequencies.keySet());
+        
+        // Step 2: Calculate max clique size where all numbers share a single specific digit (0-9).
+        // This covers cliques where a single common digit acts as the "center" for all members.
+        for (int commonDigit = 0; commonDigit <= 9; commonDigit++) {
+            int currentCliqueSize = 0;
+            // Iterate through all unique numbers present in the input array.
+            for (Map.Entry<Integer, Integer> entry : numFrequencies.entrySet()) {
+                int num = entry.getKey();
+                int count = entry.getValue(); // Get the frequency of this number
+                int tens = num / 10;
+                int units = num % 10;
+
+                // If the number contains the current commonDigit, add its frequency to the current clique size.
+                if (tens == commonDigit || units == commonDigit) {
+                    currentCliqueSize += count;
+                }
+            }
+            // Update the overall maximum clique size found so far.
+            maxOverallCliqueSize = Math.max(maxOverallCliqueSize, currentCliqueSize);
+        }
+
+        // Step 3: Check for cliques that are NOT centered around a single digit.
+        // Such cliques often involve numbers whose digits are exclusively from a small, specific set of digits.
+        // In this problem, it has been observed that maximum cliques not covered by Step 2
+        // are often formed by numbers whose digits are entirely drawn from a set of three digits.
+        // We iterate over all combinations of 3 distinct digits (d1, d2, d3) from 0 to 9.
+        // There are (10 choose 3) = 120 such combinations.
+        for (int d1 = 0; d1 <= 9; d1++) {
+            for (int d2 = d1 + 1; d2 <= 9; d2++) { // d2 must be greater than d1 to ensure distinct combinations
+                for (int d3 = d2 + 1; d3 <= 9; d3++) { // d3 must be greater than d2
+                    
+                    // Collect candidate numbers for the current triple of digits {d1, d2, d3}.
+                    // A number is a candidate if BOTH its tens digit AND its units digit
+                    // are present within this triple {d1, d2, d3}.
+                    List<Integer> candidateNumbersForTriple = new ArrayList<>();
+                    for (int num : distinctNumbers) {
+                        int tens = num / 10;
+                        int units = num % 10;
+
+                        // Check if the tens digit is one of d1, d2, or d3
+                        boolean tensInTriple = (tens == d1 || tens == d2 || tens == d3);
+                        // Check if the units digit is one of d1, d2, or d3
+                        boolean unitsInTriple = (units == d1 || units == d2 || units == d3);
+                        
+                        // If both digits of 'num' are within the current triple, add it to candidates.
+                        // This prunes the graph significantly for the inner clique check.
+                        if (tensInTriple && unitsInTriple) {
+                            candidateNumbersForTriple.add(num);
+                        }
+                    }
+
+                    // For the selected set of candidate numbers (which is very small, max 9 unique numbers),
+                    // we find the maximum weighted clique using a brute-force subset iteration.
+                    int numCandidates = candidateNumbersForTriple.size();
+                    
+                    // Iterate through all possible subsets of candidateNumbersForTriple.
+                    // (1 << numCandidates) generates all numbers from 0 to 2^numCandidates - 1,
+                    // each bit representing the inclusion of a candidate number.
+                    for (int i = 0; i < (1 << numCandidates); i++) {
+                        List<Integer> currentSubset = new ArrayList<>();
+                        // Reconstruct the current subset based on the bitmask 'i'.
+                        for (int j = 0; j < numCandidates; j++) {
+                            if ((i & (1 << j)) != 0) { // If the j-th bit is set, include the j-th candidate number
+                                currentSubset.add(candidateNumbersForTriple.get(j));
+                            }
+                        }
+
+                        // Skip empty subsets as they don't contribute to clique size (unless N=0).
+                        if (currentSubset.isEmpty()) {
+                            continue;
+                        }
+                        
+                        // Check if the currentSubset forms a valid clique.
+                        // A subset is a clique if every pair of numbers within it shares at least one digit.
+                        boolean isClique = true;
+                        for (int k = 0; k < currentSubset.size(); k++) {
+                            for (int l = k + 1; l < currentSubset.size(); l++) {
+                                // If any pair does not share a digit, it's not a clique.
+                                if (!sharesDigit(currentSubset.get(k), currentSubset.get(l))) {
+                                    isClique = false;
+                                    break;
+                                }
+                            }
+                            if (!isClique) {
+                                break; // No need to check further pairs if it's already not a clique.
+                            }
+                        }
+
+                        // If the current subset is a clique, calculate its total weight (sum of frequencies).
+                        if (isClique) {
+                            int currentSubsetWeight = 0;
+                            for (int numInSubset : currentSubset) {
+                                currentSubsetWeight += numFrequencies.get(numInSubset);
+                            }
+                            // Update the overall maximum clique size.
+                            maxOverallCliqueSize = Math.max(maxOverallCliqueSize, currentSubsetWeight);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return maxOverallCliqueSize;
+    }
+}
