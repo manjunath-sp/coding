@@ -1,0 +1,203 @@
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+
+
+/**
+ * Solution 2: Bron-Kerbosch Algorithm for Maximum Weighted Clique.
+ * This solution models the problem as finding a maximum weighted clique in a graph.
+ * Nodes represent unique two-digit numbers, and edges connect numbers that share a common digit.
+ * Node weights are the frequencies of the numbers in the input array.
+ */
+class Solution2 {
+
+    private Map<Integer, Integer> numFrequencies;
+    private List<Integer> distinctNumbers; // Maps node index to actual number value
+    private Map<Integer, Integer> numToIndex; // Maps actual number value to node index
+    private boolean[][] adjMatrix; // Adjacency matrix for the graph of unique numbers
+    private int maxWeightedCliqueSize; // Stores the overall maximum weighted clique size found
+
+    /**
+     * Helper method to check if two two-digit numbers share at least one common digit.
+     *
+     * @param num1 The first two-digit number.
+     * @param num2 The second two-digit number.
+     * @return true if they share a common digit, false otherwise.
+     */
+    private boolean sharesDigit(int num1, int num2) {
+        int t1 = num1 / 10;
+        int u1 = num1 % 10;
+        int t2 = num2 / 10;
+        int u2 = num2 % 10;
+        return (t1 == t2 || t1 == u2 || u1 == t2 || u1 == u2);
+    }
+
+    /**
+     * Recursive Bron-Kerbosch algorithm (with pivot optimization) to find maximal cliques
+     * and track the maximum weighted one.
+     *
+     * @param R The set of vertices currently in the clique (represented by their indices).
+     * @param P The set of candidate vertices that can be added to the clique (represented by their indices).
+     * @param X The set of excluded vertices (already processed and won't extend the current clique) (represented by their indices).
+     */
+    private void bronKerbosch(Set<Integer> R, Set<Integer> P, Set<Integer> X) {
+        // Base case: If P and X are both empty, R is a maximal clique.
+        if (P.isEmpty() && X.isEmpty()) {
+            int currentCliqueWeight = 0;
+            // Calculate the total weight of the current clique by summing frequencies of its numbers.
+            for (int nodeIndex : R) {
+                currentCliqueWeight += numFrequencies.get(distinctNumbers.get(nodeIndex));
+            }
+            // Update the global maximum weighted clique size.
+            maxWeightedCliqueSize = Math.max(maxWeightedCliqueSize, currentCliqueWeight);
+            return;
+        }
+
+        // Optimization: Choose a pivot vertex 'u' from P union X.
+        // This helps prune the search space by reducing the number of recursive calls.
+        Integer pivot = null;
+        int maxIntersections = -1;
+
+        // Combine P and X to find the best pivot.
+        Set<Integer> P_union_X = new HashSet<>(P);
+        P_union_X.addAll(X);
+
+        if (!P_union_X.isEmpty()) {
+            // Select a pivot 'u' that maximizes |P intersect N(u)|.
+            for (int u : P_union_X) {
+                int currentIntersections = 0;
+                for (int v : P) {
+                    if (adjMatrix[u][v]) { // If v is a neighbor of u
+                        currentIntersections++;
+                    }
+                }
+                if (currentIntersections > maxIntersections) {
+                    maxIntersections = currentIntersections;
+                    pivot = u;
+                }
+            }
+        }
+
+        // Iterate through vertices in P that are not neighbors of the pivot.
+        // This is a key optimization: any maximal clique containing a neighbor of the pivot
+        // would have already been found or will be found through the branch involving the pivot.
+        List<Integer> P_minus_N_pivot = new ArrayList<>();
+        // If pivot is null (e.g., P_union_X was empty or no suitable pivot found), iterate over all of P.
+        if (pivot != null) {
+            for (int v : P) { // Iterate over P directly and filter
+                if (!adjMatrix[pivot][v]) {
+                    P_minus_N_pivot.add(v);
+                }
+            }
+        } else {
+            P_minus_N_pivot = new ArrayList<>(P); // No pivot, process all candidates
+        }
+
+        // It's important to create a copy of P_minus_N_pivot as elements are removed from P within the loop
+        List<Integer> P_iter = new ArrayList<>(P_minus_N_pivot);
+
+
+        for (int v : P_iter) {
+            // Create sets for the recursive call
+            Set<Integer> R_next = new HashSet<>(R);
+            R_next.add(v); // Add current vertex 'v' to the clique being built
+
+            Set<Integer> P_next = new HashSet<>();
+            // P_next = P intersect N(v) (candidates that are neighbors of v)
+            for (int candidate : P) {
+                if (adjMatrix[v][candidate]) {
+                    P_next.add(candidate);
+                }
+            }
+
+            Set<Integer> X_next = new HashSet<>();
+            // X_next = X intersect N(v) (excluded vertices that are neighbors of v)
+            for (int excluded : X) {
+                if (adjMatrix[v][excluded]) {
+                    X_next.add(excluded);
+                }
+            }
+
+            // Recursive call to find cliques extending R_next
+            bronKerbosch(R_next, P_next, X_next);
+
+            // Backtracking step: Remove v from P (it's been processed for this branch)
+            // and add it to X (it's now an excluded vertex for future branches from the current R).
+            P.remove(v);
+            X.add(v);
+        }
+    }
+
+
+    /**
+     * Calculates the maximum size of a subset in which every two numbers share at least one digit.
+     * This solution uses the Bron-Kerbosch algorithm for maximum weighted clique.
+     *
+     * @param nums An array of N integers, where each element is a two-digit number [10..99].
+     * @return The maximum size of the valid subset.
+     */
+    public int solution(int[] nums) {
+        // Handle empty input array
+        if (nums.length == 0) {
+            return 0;
+        }
+
+        // Step 1: Count frequencies of each unique two-digit number.
+        // This mapping is crucial for handling duplicate numbers in the input.
+        numFrequencies = new HashMap<>();
+        for (int num : nums) {
+            numFrequencies.put(num, numFrequencies.getOrDefault(num, 0) + 1);
+        }
+
+        // Create a list of distinct numbers and a map to get their indices.
+        // This effectively creates nodes for our graph.
+        distinctNumbers = new ArrayList<>(numFrequencies.keySet());
+        numToIndex = new HashMap<>();
+        for (int i = 0; i < distinctNumbers.size(); i++) {
+            numToIndex.put(distinctNumbers.get(i), i);
+        }
+
+        int numNodes = distinctNumbers.size();
+        adjMatrix = new boolean[numNodes][numNodes];
+
+        // Step 2: Build the adjacency matrix for the graph.
+        // An edge exists between two nodes if their corresponding numbers share a digit.
+        for (int i = 0; i < numNodes; i++) {
+            for (int j = i + 1; j < numNodes; j++) { // Only fill upper triangle; adjMatrix is symmetric
+                int num1 = distinctNumbers.get(i);
+                int num2 = distinctNumbers.get(j);
+                if (sharesDigit(num1, num2)) {
+                    adjMatrix[i][j] = true;
+                    adjMatrix[j][i] = true;
+                }
+            }
+        }
+
+        // Initialize maxWeightedCliqueSize.
+        // A single element always forms a valid clique, so the initial max is at least the frequency of
+        // the most frequent single number. This handles cases like [11, 33, 55] where the answer is 1.
+        maxWeightedCliqueSize = 0;
+        for (int freq : numFrequencies.values()) {
+            maxWeightedCliqueSize = Math.max(maxWeightedCliqueSize, freq);
+        }
+
+
+        // Step 3: Initialize and run the Bron-Kerbosch algorithm.
+        // R (current clique) starts empty.
+        // P (potential candidates) starts with all node indices.
+        // X (excluded) starts empty.
+        Set<Integer> P_initial = new HashSet<>();
+        for (int i = 0; i < numNodes; i++) {
+            P_initial.add(i);
+        }
+
+        bronKerbosch(new HashSet<>(), P_initial, new HashSet<>());
+
+        return maxWeightedCliqueSize;
+    }
+}
