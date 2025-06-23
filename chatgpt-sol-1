@@ -1,0 +1,35 @@
+import java.util.*;
+
+class Solution {
+    public int solution(int[] nums) {
+        Map<Integer, Integer> maskCount = new HashMap<>();
+
+        // Step 1: Count numbers by their digit bitmask
+        for (int num : nums) {
+            int d1 = num / 10;
+            int d2 = num % 10;
+            int mask = (1 << d1) | (1 << d2);
+            maskCount.put(mask, maskCount.getOrDefault(mask, 0) + 1);
+        }
+
+        int maxGroupSize = 0;
+        List<Integer> masks = new ArrayList<>(maskCount.keySet());
+
+        // Step 2: Try all combinations of masks that share at least one digit
+        for (int i = 0; i < masks.size(); i++) {
+            int mask1 = masks.get(i);
+            int count1 = maskCount.get(mask1);
+            maxGroupSize = Math.max(maxGroupSize, count1); // Single mask group
+
+            for (int j = i + 1; j < masks.size(); j++) {
+                int mask2 = masks.get(j);
+                if ((mask1 & mask2) != 0) { // Check for shared digit
+                    int count2 = maskCount.get(mask2);
+                    maxGroupSize = Math.max(maxGroupSize, count1 + count2);
+                }
+            }
+        }
+
+        return maxGroupSize;
+    }
+}
