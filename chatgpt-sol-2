@@ -1,0 +1,49 @@
+import java.util.*;
+
+class Solution {
+    public int solution(int[] nums) {
+        int[] parent = new int[10];
+        for (int i = 0; i < 10; i++) parent[i] = i;
+
+        // DSU methods
+        int find(int x) {
+            if (parent[x] != x) parent[x] = find(parent[x]);
+            return parent[x];
+        }
+
+        void union(int x, int y) {
+            parent[find(x)] = find(y);
+        }
+
+        // Group digits together
+        for (int num : nums) {
+            int a = num / 10, b = num % 10;
+            union(a, b);
+        }
+
+        // Map root digit to count of numbers that belong to that group
+        Map<Integer, Integer> groupCount = new HashMap<>();
+        for (int num : nums) {
+            int a = num / 10, b = num % 10;
+            int root = find(a);
+            groupCount.put(root, groupCount.getOrDefault(root, 0) + 1);
+        }
+
+        int max = 0;
+        for (int count : groupCount.values()) {
+            max = Math.max(max, count);
+        }
+
+        return max;
+    }
+
+    // Move nested methods out to avoid compilation issues in Java
+    private int find(int[] parent, int x) {
+        if (parent[x] != x) parent[x] = find(parent, parent[x]);
+        return parent[x];
+    }
+
+    private void union(int[] parent, int x, int y) {
+        parent[find(parent, x)] = find(parent, y);
+    }
+}
